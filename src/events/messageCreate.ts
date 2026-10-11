@@ -1,7 +1,7 @@
 import { Events } from "discord.js";
 import { defineEvent } from "../types.js";
 
-const PREFIX = process.env.prefix ?? "!";
+const PREFIX = process.env.prefix ?? "!"
 
 export default defineEvent({
   name: Events.MessageCreate,
@@ -9,13 +9,13 @@ export default defineEvent({
     if (message.author.bot) return;
     if (!message.content.startsWith(PREFIX)) return;
 
-    // "!ban  @user  spam" -> ["ban", "@user", "spam"]
+
     const parts = message.content.slice(PREFIX.length).trim().split(/\s+/);
     const name = parts.shift()?.toLowerCase();
     if (!name) return; // el mensaje era solo el prefijo
 
     const command = message.client.prefixCommands.get(name);
-    if (!command) return; // silencio: no todo lo que empieza con ! es un comando
+    if (!command) return; 
 
     try {
       await command.execute(message, parts);

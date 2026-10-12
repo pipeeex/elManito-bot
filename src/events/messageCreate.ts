@@ -14,7 +14,7 @@ export default defineEvent({
     const name = parts.shift()?.toLowerCase();
     if (!name) return; // el mensaje era solo el prefijo
 
-    const command = message.client.prefixCommands.get(name);
+    const command = message.client.prefixCommands.lookup.get(name);
     if (!command) return; 
 
     try {

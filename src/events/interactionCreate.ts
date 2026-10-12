@@ -6,7 +6,7 @@ export default defineEvent({
   async execute(interaction) {
     if (!interaction.isChatInputCommand()) return;
 
-    const command = interaction.client.slashCommands.get(interaction.commandName);
+    const command = interaction.client.slashCommands.lookup.get(interaction.commandName);
 
     if (!command) {
       console.warn(`[slash] "${interaction.commandName}" no existe (quedo registrado en Discord?)`);

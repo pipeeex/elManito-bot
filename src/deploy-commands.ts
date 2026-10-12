@@ -10,7 +10,7 @@ if (!token) throw new Error("Falta");
 if (!clientId) throw new Error("Falta");
 
 const commands = await loadSlashCommands();
-const body = commands.map((command) => command.data.toJSON());
+const body = commands.all.map((command) => command.data.toJSON());
 
 const rest = new REST().setToken(token);
 

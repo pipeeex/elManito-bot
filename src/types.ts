@@ -13,32 +13,40 @@ type AnySlashBuilder =
   | SlashCommandOptionsOnlyBuilder
 | SlashCommandSubcommandsOnlyBuilder;
 
-export interface SlashCommand {
+export interface SlashCommandFile  {
   data: AnySlashBuilder;
   execute: (interaction: ChatInputCommandInteraction) => unknown;
 }
+export type SlashCommand = SlashCommandFile & { category: string };
 
-export interface PrefixCommand {
+export interface PrefixCommandFile {
   name: string;
   aliases?: string[];
   description?: string;
+  usage?: string;
   execute: (message: Message, args: string[]) => unknown;
 }
+export type PrefixCommand = PrefixCommandFile & { category: string };
 
 export interface Event<K extends keyof ClientEvents> {
   name: K;
   once?: boolean;
-  description?: string;
-  execute: (...args:ClientEvents[K] ) => unknown;
+  execute: (...args: ClientEvents[K]) => unknown;
 }
 
 export function defineEvent<K extends keyof ClientEvents>(event: Event<K>): Event<K> {
   return event;
 }
 
+export interface CommandRegistry<T> {
+  lookup: Collection<string, T>;
+  all: T[];
+  byCategory: Collection<string, T[]>;
+}
+
 declare module "discord.js" {
   interface Client {
-    slashCommands: Collection<string, SlashCommand>;
-    prefixCommands: Collection<string, PrefixCommand>;
+    slashCommands: CommandRegistry<SlashCommand>;
+    prefixCommands: CommandRegistry<PrefixCommand>;
   }
 }

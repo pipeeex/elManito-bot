@@ -1,11 +1,11 @@
 import { Collection } from "discord.js";
-import type { SlashCommand } from "../types.js";
-import { importFile, resolveFrom, walk } from "./walk.js";
+import { sortCategories } from "../categories.js";
+import type { CommandRegistry, SlashCommand, SlashCommandFile } from "../types.js";
+import { categoryFromPath, importFile, resolveFrom, walk } from "./walk.js";
 
-
-function isSlashCommand(value: unknown): value is SlashCommand {
+function isSlashCommandFile(value: unknown): value is SlashCommandFile {
   if (typeof value !== "object" || value === null) return false;
-  const candidate = value as Partial<SlashCommand>;
+  const candidate = value as Partial<SlashCommandFile>;
   return (
     typeof candidate.execute === "function" &&
     typeof candidate.data === "object" &&
@@ -14,28 +14,58 @@ function isSlashCommand(value: unknown): value is SlashCommand {
   );
 }
 
-export async function loadSlashCommands(): Promise<Collection<string, SlashCommand>> {
-  const commands = new Collection<string, SlashCommand>();
-  const dir = resolveFrom(import.meta.url, "..", "commands", "slash");
+export async function loadSlashCommands(): Promise<CommandRegistry<SlashCommand>> {
+  const root = resolveFrom(import.meta.url, "..", "commands", "slash");
 
-  for (const file of await walk(dir)) {
+  const lookup = new Collection<string, SlashCommand>();
+  const all: SlashCommand[] = [];
+
+  for (const file of await walk(root)) {
     const loaded = await importFile(file);
 
-    if (!isSlashCommand(loaded)) {
-      console.warn(`[slash] ${file} no exporta por default un SlashCommand valido, lo salto`);
+    if (!isSlashCommandFile(loaded)) {
+      console.warn(`[slash] ${file} no exporta por default un comando valido, lo salto`);
       continue;
     }
 
-    const name = loaded.data.name;
+    const command: SlashCommand = { ...loaded, category: categoryFromPath(root, file) };
+    const name = command.data.name;
 
-    if (commands.has(name)) {
+    if (lookup.has(name)) {
       console.warn(`[slash] comando duplicado "${name}" en ${file}, lo salto`);
       continue;
     }
 
-    commands.set(name, loaded);
+    lookup.set(name, command);
+    all.push(command);
   }
 
-  console.log(`[slash] ${commands.size} comando(s) cargado(s)`);
-  return commands;
+  const byCategory = groupByCategory(all);
+  console.log(`[slash] ${all.length} comando(s) en ${byCategory.size} categoria(s)`);
+
+  return { lookup, all, byCategory };
+}
+
+function groupByCategory(commands: SlashCommand[]): Collection<string, SlashCommand[]> {
+  const buckets = new Map<string, SlashCommand[]>();
+
+  for (const command of commands) {
+    const bucket = buckets.get(command.category);
+    if (bucket) bucket.push(command);
+    else buckets.set(command.category, [command]);
+  }
+
+  const ordered = new Collection<string, SlashCommand[]>();
+
+  for (const key of sortCategories(buckets.keys())) {
+    const bucket = buckets.get(key);
+    if (bucket) {
+      ordered.set(
+        key,
+        [...bucket].sort((a, b) => a.data.name.localeCompare(b.data.name)),
+      );
+    }
+  }
+
+  return ordered;
 }

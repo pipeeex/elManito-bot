@@ -1,7 +1,7 @@
 import { SlashCommandBuilder } from "discord.js";
-import type { SlashCommand } from "../../types.js";
+import type { SlashCommandFile } from "../../../types.js";
 
-const command: SlashCommand = {
+const command: SlashCommandFile = {
   data: new SlashCommandBuilder()
     .setName("say")
     .setDescription("El bot repite lo q tu digas")

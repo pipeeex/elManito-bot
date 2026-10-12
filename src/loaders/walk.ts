@@ -2,6 +2,7 @@ import { fileURLToPath } from "node:url";
 import { readdir } from "node:fs/promises";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
+import { DEFAULT_CATEGORY } from "../categories.js";
 
 const CODE_FILE = /\.(?:js|mjs|cjs|ts|mts|cts)$/;
 
@@ -10,7 +11,6 @@ export async function walk(dir: string): Promise<string[]> {
   try {
     entries = await readdir(dir, { withFileTypes: true });
   } catch {
-    // La carpeta no existe todavia: no es un error, simplemente no hay nada.
     return [];
   }
 
@@ -42,3 +42,12 @@ export async function importFile(file: string): Promise<unknown> {
 export function resolveFrom(importMetaUrl: string, ...segments: string[]): string {
   return path.join(path.dirname(fileURLToPath(importMetaUrl)), ...segments);
 }
+
+export function categoryFromPath(root: string, file: string): string {
+  const segments = path.relative(root, file).split(path.sep);
+  if (segments.length < 2) return DEFAULT_CATEGORY;
+  const first = segments[0];
+  return first ? first.toLowerCase() : DEFAULT_CATEGORY;
+}
+
+

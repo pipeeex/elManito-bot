@@ -1,9 +1,10 @@
-import type { PrefixCommand } from "../../types.js";
+import type { PrefixCommandFile } from "../../../types.js";
 
-const command: PrefixCommand = {
+const command: PrefixCommandFile  = {
   name: "ping",
   aliases: ["p", "latencia"],
   description: "Responde con la latencia del bot",
+  usage: "ping",
 
   async execute(message) {
     const sent = await message.reply("Midiendo...");

@@ -1,4 +1,6 @@
 import type {
+  ApplicationCommandOptionChoiceData,
+  AutocompleteInteraction,
   ChatInputCommandInteraction,
   ClientEvents,
   Collection,
@@ -16,7 +18,10 @@ type AnySlashBuilder =
 export interface SlashCommandFile  {
   data: AnySlashBuilder;
   execute: (interaction: ChatInputCommandInteraction) => unknown;
+  autocomplete?: (interaction: AutocompleteInteraction) => unknown;
 }
+
+export type Choice = ApplicationCommandOptionChoiceData<string>;
 export type SlashCommand = SlashCommandFile & { category: string };
 
 export interface PrefixCommandFile {

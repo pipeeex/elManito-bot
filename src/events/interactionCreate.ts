@@ -4,9 +4,27 @@ import { defineEvent } from "../types.js";
 export default defineEvent({
   name: Events.InteractionCreate,
   async execute(interaction) {
-    if (!interaction.isChatInputCommand()) return;
 
+
+    if (interaction.isAutocomplete()) {
+      const command = interaction.client.slashCommands.lookup.get(interaction.commandName);
+
+      if (!command?.autocomplete) {
+        await interaction.respond([]).catch(() => { });
+        return;
+      }
+      try {
+        await command.autocomplete(interaction);
+      } catch (error) {
+        console.error(`[autocomplete] error en "${interaction.commandName}":`, error);
+        await interaction.respond([]).catch(() => { });
+      }
+      return;
+    }
+
+    if (!interaction.isChatInputCommand()) return;
     const command = interaction.client.slashCommands.lookup.get(interaction.commandName);
+
 
     if (!command) {
       console.warn(`[slash] "${interaction.commandName}" no existe (quedo registrado en Discord?)`);
@@ -24,9 +42,9 @@ export default defineEvent({
       } as const;
 
       if (interaction.replied || interaction.deferred) {
-        await interaction.followUp(payload).catch(() => {});
+        await interaction.followUp(payload).catch(() => { });
       } else {
-        await interaction.reply(payload).catch(() => {});
+        await interaction.reply(payload).catch(() => { });
       }
     }
   },

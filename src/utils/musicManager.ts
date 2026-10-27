@@ -131,8 +131,8 @@ class MusicManager {
 
         void this.updatePanel(guildId);
     }
-   private fraseRand() {
-       return rs[Math.floor(Math.random() * rs.length)];
+    private fraseRand() {
+        return rs[Math.floor(Math.random() * rs.length)];
     }
     private async updatePanel(guildId: string): Promise<void> {
         const music = this.guilds.get(guildId);
@@ -142,55 +142,55 @@ class MusicManager {
         const track = music.currentTrack;
         const embed = new EmbedBuilder()
             .setColor(0x5865F2)
-        if(track){
+        if (track) {
             embed
-            .setTitle("🎵 "+ this.fraseRand())
-            .setDescription(`**[${track.title}](${track.url})**`)
-            .addFields(
-                {
-                    name: "Duración",
-                    value: track.duration ?? "Desconocida",
-                    inline: true,
-                },
-                {
-                    name: "Canciones en cola",
-                    value: String(music.queue.length),
-                    inline: true,
-                },
-                {
-                    name: "En cola",
-                    value: music.queue.length
-                        ? music.queue
-                            .map(
-                                (song, index) =>
-                                    `**${index + 1}.** [${song.title}](${song.url}) (${song.duration ?? "?"})`
-                            )
-                            .join("\n")
-                        : "No canciones en cola, pongalo a sonar /play _cancion_",
-                },
-            )
-            .setFooter({
-                text: "Usa el menú para elegir una canción o pulsa Skip.",
-            });
+                .setTitle("🎵 " + this.fraseRand())
+                .setDescription(`**[${track.title}](${track.url})**`)
+                .addFields(
+                    {
+                        name: "Duración",
+                        value: track.duration ?? "Desconocida",
+                        inline: true,
+                    },
+                    {
+                        name: "Canciones en cola",
+                        value: String(music.queue.length),
+                        inline: true,
+                    },
+                    {
+                        name: "En cola",
+                        value: music.queue.length
+                            ? music.queue
+                                .map(
+                                    (song, index) =>
+                                        `**${index + 1}.** [${song.title}](${song.url}) (${song.duration ?? "?"})`
+                                )
+                                .join("\n")
+                            : "No canciones en cola, pongalo a sonar /play _cancion_",
+                    },
+                )
+                .setFooter({
+                    text: "Usa el menú para elegir una canción o pulsa Skip.",
+                });
 
-        if (track.thumbnail) {
-            embed.setThumbnail(track.thumbnail);
-        }
-    
-        await music.panelMessage.edit({
-            embeds: [embed],
-        }).catch(error => {
-            console.error("[music] No se pudo actualizar el embed:", error);
-        });
-        }else {
-                embed
-        .setTitle("🔇 No hay canciones reproduciéndose")
-        .setDescription(
-            music.queue.length > 0
-                ? "Preparando la siguiente canción..."
-                : "La cola está vacía. Use `/play` para reproducir música."
-        )
-        .setThumbnail(null);
+            if (track.thumbnail) {
+                embed.setThumbnail(track.thumbnail);
+            }
+
+            await music.panelMessage.edit({
+                embeds: [embed],
+            }).catch(error => {
+                console.error("[music] No se pudo actualizar el embed:", error);
+            });
+        } else {
+            embed
+                .setTitle("🔇 No hay canciones reproduciéndose")
+                .setDescription(
+                    music.queue.length > 0
+                        ? "Preparando la siguiente canción..."
+                        : "La cola está vacía. Use `/play` para reproducir música."
+                )
+                .setThumbnail(null);
         }
     }
 
@@ -265,7 +265,7 @@ class MusicManager {
 
     private async playNext(guildId: string): Promise<void> {
         const music = this.guilds.get(guildId);
-        
+
 
         if (!music || music.loading) return;
 
@@ -274,17 +274,17 @@ class MusicManager {
         if (!track) return;
 
         music.currentTrack = track;
-        
+
         music.loading = true;
-        
+
         try {
             const audio = await play.stream(track.url);
-            
+
             const resource = createAudioResource(audio.stream, {
                 inputType: audio.type,
                 metadata: track,
             });
-            
+
             music.player.play(resource);
             await this.updatePanel(guildId);
 

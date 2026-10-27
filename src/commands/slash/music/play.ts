@@ -1,146 +1,40 @@
 
 import {
-    SlashCommandBuilder,
-    GuildMember,
-    EmbedBuilder,
-    type AutocompleteInteraction,
-    MessageFlags
+  SlashCommandBuilder,
+  GuildMember,
+  EmbedBuilder,
+  type AutocompleteInteraction,
+  MessageFlags,
+  ActionRowBuilder,
+  StringSelectMenuOptionBuilder,
+  StringSelectMenuBuilder,
+  ButtonBuilder,
+  ButtonStyle
 } from "discord.js";
 
 import {
-    joinVoiceChannel,
-    createAudioPlayer,
-    createAudioResource,
-    entersState,
-    VoiceConnectionStatus,
-    AudioPlayerStatus
+  joinVoiceChannel,
+  createAudioPlayer,
+  createAudioResource,
+  entersState,
+  VoiceConnectionStatus,
+  AudioPlayerStatus
 } from "@discordjs/voice";
 
 import play from "@iamtraction/play-dl";
-import type { SlashCommandFile, Choice } from "../../../types.js";
+import type { SlashCommandFile } from "../../../types.js";
+import "../../../utils/musicManager.js"
+import {
+  musicManager,
+  type Track,
+} from "../../../utils/musicManager.js";
+import { log } from "node:console";
 
 
-const MAX_CHOICES = 8;
-const MAX_NAME = 100;
-const MAX_VALUE = 100;
-const MIN_QUERY = 3;
-const CACHE_TTL = 60_000;
-const CACHE_MAX = 100;
 
 const players = new Map<string, ReturnType<typeof createAudioPlayer>>();
 
-const rs = ["Reproduciendo: ", "Soyese este: ","Dejeme sonar este: ", "Sonando: "]
-
-
-interface CacheEntry {
-  expiresAt: number;
-  choices: Choice[];
-}
-
-
-const searchCache = new Map<string, CacheEntry>();
-
-
-const lastRequest = new Map<string, number>();
-
-function readCache(key: string): Choice[] | undefined {
-  const entry = searchCache.get(key);
-  if (!entry) return undefined;
-
-  if (entry.expiresAt < Date.now()) {
-    searchCache.delete(key);
-    return undefined;
-  }
-
-  return entry.choices;
-}
-
-function writeCache(key: string, choices: Choice[]): void {
-
-  if (searchCache.size >= CACHE_MAX) {
-    const oldest = searchCache.keys().next();
-    if (!oldest.done) searchCache.delete(oldest.value);
-  }
-
-  searchCache.set(key, { expiresAt: Date.now() + CACHE_TTL, choices });
-}
-
-
-function normalize(query: string): string {
-  return query.trim().toLowerCase().replace(/\s+/g, " ");
-}
-
-function truncate(text: string, limit: number): string {
-  return text.length <= limit ? text : `${text.slice(0, limit - 1)}…`;
-}
-
-/** "Titulo · Autor (3:42)" recortado a 100 caracteres. */
-function buildChoiceName(title: string, author: string, duration: string): string {
-  const suffix = ` · ${author} (${duration})`;
-
-  const room = MAX_NAME - suffix.length;
-
-  if (room < 20) return truncate(`${title}${suffix}`, MAX_NAME);
-  return `${truncate(title, room)}${suffix}`;
-}
-
-/** Siempre por aqui: si la interaccion caduco, respond() tira 10062. */
-async function safeRespond(interaction: AutocompleteInteraction, choices: Choice[]): Promise<void> {
-  await interaction.respond(choices.slice(0, 25)).catch(() => {});
-}
-
-// ---------------------------------------------------------------- resolver
-
-interface ResolvedTrack {
-  title: string;
-  author: string;
-  url: string;
-  duration: string;
-  thumbnail: string | null;
-}
-
-/**
- * Convierte lo que llego en la opcion a una pista concreta.
- *
- * Puede llegar de dos formas y las DOS tienen que funcionar:
- *  - una URL, porque el usuario eligio una sugerencia (el value es la url)
- *  - texto crudo, porque escribio y le dio Enter sin elegir nada
- */
-async function resolveTrack(query: string): Promise<ResolvedTrack | null> {
-  const kind = play.yt_validate(query);
-
-  if (kind === "playlist") return null;
-
-  // "video" cubre tanto una url de YouTube como un id pelado.
-  if (kind === "video") {
-    const info = await play.video_basic_info(query);
-    const details = info.video_details;
-
-    return {
-      title: details.title ?? "Sin titulo",
-      author: details.channel?.name ?? "Desconocido",
-      url: details.url,
-      duration: details.live ? "EN VIVO" : details.durationRaw,
-      thumbnail: details.thumbnails.at(-1)?.url ?? null,
-    };
-  }
-
-  const results = await play.search(query, {
-    limit: 1,
-    source: { youtube: "video" },
-  });
-
-  const first = results[0];
-  if (!first) return null;
-
-  return {
-    title: first.title ?? "Sin titulo",
-    author: first.channel?.name ?? "Desconocido",
-    url: first.url,
-    duration: first.live ? "EN VIVO" : first.durationRaw,
-    thumbnail: first.thumbnails.at(-1)?.url ?? null,
-  };
-}
+const rs = ["Reproduciendo: ", "Soyese este: ", "Dejeme sonar este: ", "Sonando: ", "Silencio q puserion: "]
 
 const command: SlashCommandFile = {
   data: new SlashCommandBuilder()
@@ -154,170 +48,186 @@ const command: SlashCommandFile = {
         .setAutocomplete(true),
     ),
 
-  async autocomplete(interaction) {
-    const focused = interaction.options.getFocused(true);
+  async execute(interaction) {
 
-    // Si algun dia play tiene mas opciones, solo respondemos a esta.
-    if (focused.name !== "cancion") {
-      await safeRespond(interaction, []);
-      return;
-    }
+    const member = interaction.member as GuildMember;
+    const channel = member.voice.channel;
+    const guild = interaction.guild!;
 
-    const raw = focused.value;
-    const key = normalize(raw);
 
-    if (key.length < MIN_QUERY) {
-      await safeRespond(interaction, []);
-      return;
-    }
-
-    if (play.yt_validate(raw.trim()) !== "search") {
-      const url = raw.trim();
-      await safeRespond(
-        interaction,
-        url.length <= MAX_VALUE ? [{ name: "Usar este enlace", value: url }] : [],
+    if (!guild) {
+      await interaction.editReply(
+        "Este comando solo funciona en un servidor."
       );
       return;
     }
 
-    const cached = readCache(key);
-    if (cached) {
-      await safeRespond(interaction, cached);
-      return;
-    }
-
-    const stamp = Date.now();
-    lastRequest.set(interaction.user.id, stamp);
-
-    const results = await play.search(raw.trim(), {
-      limit: MAX_CHOICES,
-      source: { youtube: "video" },
-    });
-
-    const choices: Choice[] = [];
-    const seen = new Set<string>();
-
-    for (const video of results) {
-      if (video.upcoming) continue;
-      if (video.url.length > MAX_VALUE) continue;
-      if (seen.has(video.url)) continue;
-
-      seen.add(video.url);
-
-      choices.push({
-        name: buildChoiceName(
-          video.title ?? "Sin titulo",
-          video.channel?.name ?? "Desconocido",
-          video.live ? "EN VIVO" : video.durationRaw,
-        ),
-        value: video.url,
-      });
-    }
-
-    writeCache(key, choices);
-
-    // Mientras buscabamos el usuario siguio tecleando: esta respuesta ya es
-    // vieja y pintaria resultados que no corresponden a lo que tiene escrito.
-    if (lastRequest.get(interaction.user.id) !== stamp) return;
-
-    await safeRespond(interaction, choices);
-  },
-
-  async execute(interaction) {
-    // inCachedGuild() estrecha los tipos de verdad: despues de esto
-    // interaction.member es un GuildMember, sin castear nada a mano.
-    if (!interaction.inCachedGuild()) {
-      await interaction.reply({
-        content: "Este comando solo sirve en un servidor.",
-        flags: MessageFlags.Ephemeral,
-      });
-      return;
-    }
-
-    const channel = interaction.member.voice.channel;
-
     if (!channel) {
       await interaction.reply({
-        content: "Metase a un canal de voz primero, atembado",
+        content: "Primero entra a un canal de voz.",
+        ephemeral: true,
       });
       return;
     }
 
     const query = interaction.options.getString("cancion", true);
+
     await interaction.deferReply();
 
     try {
-      const track = await resolveTrack(query);
+      const results = await play.search(query, {
+        limit: 1,
+        source: { youtube: "video" },
+      });
 
-      if (!track) {
-        await interaction.editReply(`No encontre nada con \`${truncate(query, 80)}\`.`);
+      const first = results[0];
+
+      if (!first) {
+        await interaction.editReply("No encontré esa canción.");
         return;
       }
+
+      const currentTrack: Track = {
+        title: first.title!,
+        url: first.url,
+        duration: first.durationRaw,
+        thumbnail: first.thumbnails[0]?.url!,
+      };
+
+      console.log(first);
+
+
+      let recommendations: Track[] = [];
+
+      try {
+        const related = await play.search(
+          `${first.title} ${first.channel?.name} canciones similares `,
+          {
+            limit: 10,
+            source: { youtube: "video" },
+          }
+        );
+
+        const seen = new Set<string>([currentTrack.url]);
+
+        recommendations = related
+          .filter(song => {
+            if (!song.title || !song.url || seen.has(song.url)) {
+              return false;
+            }
+
+            seen.add(song.url);
+            return true;
+          })
+          .slice(0, 5)
+          .map(song => ({
+            title: song.title!,
+            url: song.url,
+            duration: song.durationRaw,
+            thumbnail: song.thumbnails[0]?.url!,
+          }));
+      } catch (error) {
+        console.error("[music] Error buscando recomendaciones:", error);
+      }
+
+      // La canción elegida va primero; las recomendaciones quedan
+      // en la cola para reproducirse automáticamente después.
+      await musicManager.enqueue(
+        interaction.guild,
+        channel,
+        [currentTrack, ...recommendations]
+      );
+
+      musicManager.setRecommendations(
+        interaction.guild.id,
+        recommendations
+      );
+
 
       const frase = rs[Math.floor(Math.random() * rs.length)];
 
       const embed = new EmbedBuilder()
-        .setColor("Random")
-        .setTitle(track.title)
-        .setURL(track.url)
-        .setDescription(frase!)
-        .setThumbnail(track.thumbnail)
+        .setColor(0x5865F2)
+        .setTitle(`🎵 ${frase}`)
+        .setDescription(
+          `**[${currentTrack.title}](${currentTrack.url})**`
+        )
         .addFields(
-          { name: "Autor", value: track.author, inline: true },
-          { name: "Duracion", value: track.duration, inline: true },
-          { name: "Canal", value: channel.name, inline: true },
-        );
-        
-        const audio = await play.stream(track.url);
-
-        // Crear o reutilizar el reproductor del servidor
-        let player = players.get(interaction.guildId);
-
-        if (!player) {
-            player = createAudioPlayer();
-
-            player.on("error", error => {
-                console.error("Error de reproducción:", error.message);
-            });
-
-            players.set(interaction.guildId, player);
-        }
-
-        // Conectarse al canal de voz
-        const connection = joinVoiceChannel({
-            channelId: channel.id,
-            guildId: interaction.guildId,
-            adapterCreator: interaction.guild.voiceAdapterCreator,
-            selfDeaf: true
+          {
+            name: "Duración",
+            value: currentTrack.duration ?? "Desconocida",
+            inline: true,
+          },
+          {
+            name: "Canciones en cola",
+            value: String(recommendations.length),
+            inline: true,
+          },
+          {
+            name: "Recomendaciones",
+            value: recommendations.length
+              ? recommendations
+                .map(
+                  (song, index) =>
+                    `**${index + 1}.** [${song.title}](${song.url})  (${song.duration ?? "?"})`
+                )
+                .join("\n")
+              : "No encontré recomendaciones para esta canción.",
+          }
+        )
+        .setThumbnail(currentTrack.thumbnail)
+        .setFooter({
+          text: "Usa el menú para elegir la siguiente canción.",
         });
 
-        await entersState(
-            connection,
-            VoiceConnectionStatus.Ready,
-            20_000
+      const components = [];
+
+      if (recommendations.length > 0) {
+        const menu = new StringSelectMenuBuilder()
+          .setCustomId("music:recommendations")
+          .setPlaceholder("Elegir la siguiente canción")
+          .addOptions(
+            recommendations.map((song, index) =>
+              new StringSelectMenuOptionBuilder()
+                .setLabel(song.title.slice(0, 100))
+                .setValue(String(index))
+                .setDescription("Pasar al siguiente puesto")
+            )
+          );
+
+        components.push(
+          new ActionRowBuilder<StringSelectMenuBuilder>()
+            .addComponents(menu)
         );
-
-        connection.subscribe(player);
-
-        // Reproducir el audio obtenido de YouTube
-        const resource = createAudioResource(audio.stream, {
-            inputType: audio.type
-        });
-
-        player.play(resource);
-
-        await entersState(
-            player,
-            AudioPlayerStatus.Playing,
-            15_000
-        );
+      }
 
 
-      await interaction.editReply({ embeds: [embed] });
+      const skipButton = new ButtonBuilder()
+        .setCustomId("music:skip")
+        .setLabel("Skip")
+        .setEmoji("⏭️")
+        .setStyle(ButtonStyle.Primary);
+
+      components.push(
+        new ActionRowBuilder<ButtonBuilder>()
+          .addComponents(skipButton)
+      );
+
+      await interaction.editReply({
+        embeds: [embed],
+        components,
+      });
+
+      const reply = await interaction.fetchReply();
+
+      musicManager.setPanelMessage(guild.id!, reply);
 
     } catch (error) {
-      console.error("[play] fallo resolviendo la cancion:", error);
-      await interaction.editReply("Se me cayo buscando esa cancion.").catch(() => {});
+      console.error("[slash] Error en /play:", error);
+
+      await interaction.editReply(
+        "No pude buscar o reproducir esa canción. Revisa la consola."
+      );
     }
   },
 };

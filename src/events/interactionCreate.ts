@@ -1,9 +1,82 @@
 import { Events, MessageFlags } from "discord.js";
 import { defineEvent } from "../types.js";
+import { musicManager } from "../utils/musicManager.js";
 
 export default defineEvent({
   name: Events.InteractionCreate,
   async execute(interaction) {
+
+    if (
+      interaction.isButton() &&
+      interaction.customId === "music:skip"
+    ) {
+      if (!interaction.guildId) {
+        await interaction.reply({
+          content: "Este botón solo funciona en un servidor.",
+          flags: MessageFlags.Ephemeral,
+        });
+        return;
+      }
+
+      const skipped = musicManager.skip(interaction.guildId);
+
+      if (!skipped) {
+        await interaction.reply({
+          content: "No hay ninguna canción reproduciéndose.",
+          flags: MessageFlags.Ephemeral,
+        });
+        return;
+      }
+
+      await interaction.reply({
+        content: "⏭️ Canción saltada.",
+          flags: MessageFlags.Ephemeral,
+      });
+
+      return;
+    }
+    if (
+      interaction.isStringSelectMenu() &&
+      interaction.customId === "music:recommendations"
+    ) {
+      if (!interaction.guildId) {
+        await interaction.reply({
+          content: "Este menú solo funciona en un servidor.",
+          flags: MessageFlags.Ephemeral,
+        });
+        return;
+      }
+
+      const index = Number(interaction.values[0]);
+
+      if (!Number.isInteger(index)) {
+        await interaction.reply({
+          content: "La recomendación seleccionada no es válida.",
+          flags: MessageFlags.Ephemeral,
+        });
+        return;
+      }
+
+      const track = musicManager.prioritizeRecommendation(
+        interaction.guildId,
+        index
+      );
+
+      if (!track) {
+        await interaction.reply({
+          content: "No encontré esa recomendación.",
+          flags: MessageFlags.Ephemeral,
+        });
+        return;
+      }
+
+      await interaction.reply({
+        content: `⏭️ **${track.title}** será la siguiente canción.`,
+        flags: MessageFlags.Ephemeral,
+      });
+
+      return;
+    }
 
 
     if (interaction.isAutocomplete()) {

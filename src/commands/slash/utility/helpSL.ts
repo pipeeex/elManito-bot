@@ -48,6 +48,7 @@ const command: SlashCommandFile = {
     const moderationCommands = registry.byCategory.get("moderation") ?? [];
     const utilityCommands = registry.byCategory.get("utility") ?? [];
     const musicCommands = registry.byCategory.get("music") ?? [];
+    const canvasCommands = registry.byCategory.get("canvas") ?? [];
 
     const embed = new EmbedBuilder()
       .setTitle(`Comandos — ${registry.all.length} en total`)
@@ -59,6 +60,8 @@ const command: SlashCommandFile = {
         { name: `MODERATION [${moderationCommands.length}]:`, value: list(moderationCommands) },
         { name: `UTILITY [${utilityCommands.length}]:`, value: list(utilityCommands) },
         { name: `MUSIC [${musicCommands.length}]:`, value: list(musicCommands) },
+        { name: `CANVAS_UMB [${canvasCommands.length}]:`, value: list(canvasCommands) },
+        
       );
 
     await interaction.reply({ embeds: [embed] });

@@ -19,6 +19,7 @@ export const CATEGORIES: Record<string, CategoryMeta> = {
   moderation: { label: "MODERATION", emoji: "🛡️" },
   utility: { label: "UTILITY", emoji: "🔧" },
   music: { label: "MUSIC", emoji: "🎵" },
+  canvas: {label: "CANVAS_UMB", emoji: "📚"}
 };
 
 /** Si una categoria esta vacia, la escondemos del help. Pon false para mostrarla con "—". */
